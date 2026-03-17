@@ -15,7 +15,7 @@ export const GET = createReadRoute(async ({ log }) => {
     service: SERVICE_NAME,
     timestamp: new Date().toISOString(),
   });
-}, { serviceName: SERVICE_NAME, auth: 'public' });
+}, { serviceName: SERVICE_NAME });
 
 /**
  * POST /api/poller — trigger an event poll cycle.
@@ -129,4 +129,4 @@ export const POST = createWriteRoute(async ({ req, log }) => {
     status: 200,
     events: [],
   };
-}, { serviceName: SERVICE_NAME, auth: 'public', scope: 'POST /api/poller' });
+}, { serviceName: SERVICE_NAME, scope: 'POST /api/poller' });
