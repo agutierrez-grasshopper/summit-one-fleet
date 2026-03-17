@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { createSessionReadRoute, createSessionWriteRoute } from '@rocketmanv9/chassis/nextjs';
 import { AppError } from '@rocketmanv9/chassis/errors';
+import { createTenantServiceClient } from '@rocketmanv9/chassis/supabase';
 
 const SERVICE_NAME = process.env.INTERNAL_JWT_ISSUER || 'summit-one-fleet';
 
@@ -16,7 +17,13 @@ const CreateAssetSchema = z.object({
   model: z.string().optional(),
 });
 
-export const GET = createSessionReadRoute(async ({ req, supabase }) => {
+export const GET = createSessionReadRoute(async ({ req, session }) => {
+  const supabase = await createTenantServiceClient({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    tenantId: session.tenantId,
+  });
+
   const url = new URL(req.url);
   const status = url.searchParams.get('status');
   const asset_class = url.searchParams.get('asset_class');
