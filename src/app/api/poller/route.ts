@@ -33,7 +33,7 @@ export const POST = createWriteRoute(async ({ req, log }) => {
     }
   }
 
-  const supabase = createTenantServiceClient({
+  const supabase = await createTenantServiceClient({
     url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     tenantId: 'system',
