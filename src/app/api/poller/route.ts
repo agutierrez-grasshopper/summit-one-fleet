@@ -1,5 +1,4 @@
-import { createReadRoute, createWriteRoute } from '@rocketmanv9/chassis/nextjs';
-import { AppError } from '@rocketmanv9/chassis/errors';
+import { NextResponse } from 'next/server';
 import { createTenantServiceClient } from '@rocketmanv9/chassis/supabase';
 
 const SERVICE_NAME = process.env.INTERNAL_JWT_ISSUER || 'summit-one-fleet';
@@ -8,28 +7,25 @@ const EVENT_POLLER_SECRET = process.env.EVENT_POLLER_SECRET;
 /**
  * GET /api/poller — health check for the event poller.
  */
-export const GET = createReadRoute(async ({ log }) => {
-  log.info('poller.health');
-  return Response.json({
+export async function GET() {
+  return NextResponse.json({
     status: 'ok',
     service: SERVICE_NAME,
     timestamp: new Date().toISOString(),
   });
-}, { serviceName: SERVICE_NAME });
+}
 
 /**
  * POST /api/poller — trigger an event poll cycle.
  *
  * Protected by EVENT_POLLER_SECRET. Called by pg_cron or external scheduler.
- * This is an alternative to the Supabase Edge Function event-poller —
- * use one or the other, not both.
  */
-export const POST = createWriteRoute(async ({ req, log }) => {
+export async function POST(req: Request) {
   // Verify poller secret
   if (EVENT_POLLER_SECRET) {
     const auth = req.headers.get('authorization');
     if (auth !== `Bearer ${EVENT_POLLER_SECRET}`) {
-      throw AppError.unauthorized('Invalid poller secret');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
 
@@ -39,8 +35,9 @@ export const POST = createWriteRoute(async ({ req, log }) => {
     tenantId: 'system',
   });
 
-  // Claim a batch of pending events
   const pollerId = `api-poller-${SERVICE_NAME}`;
+
+  // Claim a batch of pending events
   const { data: events, error: claimError } = await supabase.rpc('outbox_claim_batch', {
     p_batch_size: 50,
     p_poller_id: pollerId,
@@ -48,24 +45,18 @@ export const POST = createWriteRoute(async ({ req, log }) => {
   });
 
   if (claimError) {
-    log.error('poller.claim_failed', { error: claimError.message });
-    throw AppError.internal(`Claim failed: ${claimError.message}`);
+    console.error('poller.claim_failed', claimError.message);
+    return NextResponse.json({ error: 'Claim failed', detail: claimError.message }, { status: 500 });
   }
 
   if (!events?.length) {
-    return {
-      data: { status: 'ok', claimed: 0, delivered: 0, failed: 0 },
-      status: 200,
-      events: [],
-    };
+    return NextResponse.json({ status: 'ok', claimed: 0, delivered: 0, failed: 0 });
   }
 
-  log.info('poller.claimed', { count: events.length });
+  console.log(`poller.claimed: ${events.length} events`);
 
-  // Deliver events to Hub or webhook subscribers
   const delivered: string[] = [];
   const failed: { id: string; error: string }[] = [];
-
   const hubUrl = process.env.HUB_WEBHOOK_URL;
 
   if (hubUrl) {
@@ -99,13 +90,11 @@ export const POST = createWriteRoute(async ({ req, log }) => {
       }
     }
   } else {
-    // No Hub — mark all as delivered (events stay in outbox for local consumers)
     for (const event of events) {
       delivered.push(event.id);
     }
   }
 
-  // Mark results
   if (delivered.length > 0) {
     await supabase.rpc('outbox_mark_dispatched', { p_event_ids: delivered });
   }
@@ -122,11 +111,7 @@ export const POST = createWriteRoute(async ({ req, log }) => {
     failed: failed.length,
   };
 
-  log.info('poller.complete', result);
+  console.log('poller.complete', result);
 
-  return {
-    data: result,
-    status: 200,
-    events: [],
-  };
-}, { serviceName: SERVICE_NAME, scope: 'POST /api/poller' });
+  return NextResponse.json(result);
+}
