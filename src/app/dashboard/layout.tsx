@@ -12,6 +12,10 @@ const NAV_ITEMS = [
   { href: '/dashboard/telemetry', label: 'Telemetry', icon: 'T' },
 ];
 
+const DEV_NAV_ITEMS = [
+  { href: '/dashboard/events', label: 'Event Pipeline', icon: 'E' },
+];
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let session;
   try {
@@ -22,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!session) redirect(process.env.NEXT_PUBLIC_CORE_APP_URL || '/');
 
   const initials = (session.name || session.email || '?').slice(0, 2).toUpperCase();
+  const isDeveloper = session.isDeveloper || session.role === 'admin';
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -67,24 +72,34 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <nav style={{ flex: 1, padding: '0.5rem 0', overflowY: 'auto' }}>
           {NAV_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className="nav-link">
-              <span style={{
-                width: 22,
-                height: 22,
-                borderRadius: 5,
-                background: 'var(--bg-elevated)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.625rem',
-                fontWeight: 600,
-                color: 'var(--text-muted)',
-                flexShrink: 0,
-              }}>
-                {item.icon}
-              </span>
+              <NavIcon icon={item.icon} />
               {item.label}
             </Link>
           ))}
+
+          {/* Dev tools — only visible to developers/admins */}
+          {isDeveloper && (
+            <>
+              <div style={{
+                margin: '0.75rem 1rem 0.375rem',
+                padding: '0.375rem 0 0',
+                borderTop: '1px solid var(--border-subtle)',
+                fontSize: '0.5625rem',
+                fontWeight: 600,
+                color: 'var(--purple)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+              }}>
+                Dev Tools
+              </div>
+              {DEV_NAV_ITEMS.map((item) => (
+                <Link key={item.href} href={item.href} className="nav-link">
+                  <NavIcon icon={item.icon} dev />
+                  {item.label}
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
 
         {/* User */}
@@ -109,7 +124,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {session.name || session.email}
               </p>
-              <p style={{ margin: 0, fontSize: '0.625rem', color: 'var(--text-muted)' }}>{session.role}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                <p style={{ margin: 0, fontSize: '0.625rem', color: 'var(--text-muted)' }}>{session.role}</p>
+                {isDeveloper && (
+                  <span className="badge badge-purple" style={{ fontSize: '0.5rem', padding: '0 0.25rem', lineHeight: '1.4' }}>DEV</span>
+                )}
+              </div>
             </div>
           </div>
           <a href="/api/auth/logout" style={{
@@ -129,5 +149,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
     </div>
+  );
+}
+
+function NavIcon({ icon, dev }: { icon: string; dev?: boolean }) {
+  return (
+    <span style={{
+      width: 22,
+      height: 22,
+      borderRadius: 5,
+      background: dev ? 'rgba(168, 85, 247, 0.15)' : 'var(--bg-elevated)',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '0.625rem',
+      fontWeight: 600,
+      color: dev ? 'var(--purple)' : 'var(--text-muted)',
+      flexShrink: 0,
+    }}>
+      {icon}
+    </span>
   );
 }
